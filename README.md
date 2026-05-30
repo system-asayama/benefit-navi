@@ -1,2 +1,3 @@
 # benefit-navi
-ランディングページを管理するサイト
+
+Docker Compose (Flask + PostgreSQL)
