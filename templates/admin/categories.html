@@ -1,0 +1,53 @@
+{% extends "admin/base.html" %}
+
+{% block title %}カテゴリ管理{% endblock %}
+
+{% block content %}
+<div class="page-head admin-page-head">
+  <h1>カテゴリ管理</h1>
+</div>
+
+<table class="admin-table">
+  <thead>
+    <tr><th>名前</th><th>スラッグ</th><th>説明</th><th>並び順</th><th>記事数</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for c in categories %}
+      <tr>
+        <td>{{ c.name }}</td>
+        <td>{{ c.slug }}</td>
+        <td>{{ c.description }}</td>
+        <td>{{ c.sort_order }}</td>
+        <td>{{ c.articles|length }}</td>
+        <td class="row-actions">
+          <form method="post" action="{{ url_for('admin.category_delete', category_id=c.id) }}"
+                onsubmit="return confirm('「{{ c.name }}」を削除しますか？');">
+            <button type="submit" class="btn btn-small btn-danger">削除</button>
+          </form>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6">カテゴリがありません。</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<section class="form-section">
+  <h2>カテゴリを追加</h2>
+  <form method="post" class="article-form">
+    <label>名前 <span class="req">*</span>
+      <input type="text" name="name" required>
+    </label>
+    <label>スラッグ（空なら自動生成）
+      <input type="text" name="slug" placeholder="例: investment">
+    </label>
+    <label>説明
+      <input type="text" name="description">
+    </label>
+    <label>並び順（小さいほど上）
+      <input type="number" name="sort_order" value="0">
+    </label>
+    <button type="submit" class="btn btn-primary">追加する</button>
+  </form>
+</section>
+{% endblock %}
