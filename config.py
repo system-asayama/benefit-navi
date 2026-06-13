@@ -21,3 +21,7 @@ class Config:
     SITE_TAGLINE = os.environ.get(
         "SITE_TAGLINE", "投資・福利厚生・副業の「知って得する」情報をお届け"
     )
+
+    # REST API（MCP 連携用）のアクセストークン。
+    # 未設定（空）の場合は API を無効化し、外部からの書き込みを受け付けない。
+    API_TOKEN = os.environ.get("API_TOKEN", "")

@@ -1,0 +1,3 @@
+# MCP サーバー(mcp_server.py)用の依存。Web アプリ本体とは別に入れる。
+mcp>=1.2.0
+httpx>=0.27.0

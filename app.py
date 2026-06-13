@@ -36,10 +36,12 @@ def create_app():
         }
 
     from views.admin import bp as admin_bp
+    from views.api import bp as api_bp
     from views.public import bp as public_bp
 
     app.register_blueprint(public_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(api_bp)
 
     init_db(app)
     return app
