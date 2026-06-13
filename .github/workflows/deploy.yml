@@ -6,15 +6,16 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  deploy-production:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy via SSH
+      - name: Deploy via SSH (production)
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          port: ${{ secrets.SSH_PORT }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ secrets.SSH_HOST_PRODUCTION }}
+          username: ${{ secrets.SSH_USER_PRODUCTION }}
+          port: ${{ secrets.SSH_PORT_PRODUCTION }}
+          key: ${{ secrets.SSH_PRIVATE_KEY_PRODUCTION }}
           script: |
-            cd ~/apps/benefit_navi && git pull && docker compose pull 2>/dev/null || true && docker compose up -d --build --remove-orphans
+            [ -d ~/apps/benefit-navi/.git ] || (mkdir -p ~/apps/benefit-navi && cd ~/apps/benefit-navi && git init) && cd ~/apps/benefit-navi && git pull --rebase --autostash 2>/dev/null || git pull && cd ~/apps/benefit-navi && docker compose pull 2>/dev/null || true; docker compose up -d --build --remove-orphans
