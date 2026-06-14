@@ -18,4 +18,18 @@ jobs:
           port: ${{ secrets.SSH_PORT_PRODUCTION }}
           key: ${{ secrets.SSH_PRIVATE_KEY_PRODUCTION }}
           script: |
-            [ -d ~/apps/benefit-navi/.git ] || (mkdir -p ~/apps/benefit-navi && cd ~/apps/benefit-navi && git init) && cd ~/apps/benefit-navi && git pull --rebase --autostash 2>/dev/null || git pull && cd ~/apps/benefit-navi && docker compose pull 2>/dev/null || true; docker compose up -d --build --remove-orphans
+            APP_DIR="$HOME/apps/benefit-navi"
+            REPO_URL="https://github.com/system-asayama/benefit-navi.git"
+
+            if [ ! -d "$APP_DIR/.git" ] || ! git -C "$APP_DIR" remote get-url origin >/dev/null 2>&1; then
+              rm -rf "$APP_DIR"
+              mkdir -p "$HOME/apps"
+              git clone "$REPO_URL" "$APP_DIR"
+            else
+              git -C "$APP_DIR" fetch origin
+              git -C "$APP_DIR" reset --hard origin/main
+            fi
+
+            cd "$APP_DIR"
+            docker compose pull 2>/dev/null || true
+            docker compose up -d --build --remove-orphans
