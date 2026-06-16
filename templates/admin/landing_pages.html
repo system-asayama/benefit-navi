@@ -1,0 +1,47 @@
+{% extends "admin/base.html" %}
+
+{% block title %}ランディングページ{% endblock %}
+
+{% block content %}
+<div class="page-head admin-page-head">
+  <h1>ランディングページ（LP）</h1>
+  <a class="btn btn-primary" href="{{ url_for('admin.landing_page_new') }}">＋ 新規LP</a>
+</div>
+
+<p class="muted">独自デザインのページを <code>/lp/&lt;スラッグ&gt;</code> で配信します。MCP / API からも追加できます。</p>
+
+<table class="admin-table">
+  <thead>
+    <tr>
+      <th>タイトル</th>
+      <th>URL</th>
+      <th>状態</th>
+      <th>更新日</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in pages %}
+      <tr>
+        <td>{{ p.title }}</td>
+        <td><a href="{{ url_for('public.landing', slug=p.slug) }}" target="_blank">/lp/{{ p.slug }} ↗</a></td>
+        <td>
+          {% if p.published %}<span class="badge badge-on">公開</span>
+          {% else %}<span class="badge badge-off">下書き</span>{% endif %}
+        </td>
+        <td>{{ p.updated_at.strftime('%Y-%m-%d') if p.updated_at else '-' }}</td>
+        <td class="row-actions">
+          <a class="btn btn-small" href="{{ url_for('admin.landing_page_edit', page_id=p.id) }}">編集</a>
+          <form method="post" action="{{ url_for('admin.landing_page_delete', page_id=p.id) }}"
+                onsubmit="return confirm('「{{ p.title }}」を削除しますか？');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-small btn-danger">削除</button>
+          </form>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5">まだLPがありません。MCP連携、または「＋ 新規LP」から追加できます。</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

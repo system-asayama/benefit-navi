@@ -19,7 +19,7 @@ from flask_login import (
 )
 
 from extensions import db
-from models import AdminUser, Article, Category, LoginThrottle
+from models import AdminUser, Article, Category, LandingPage, LoginThrottle
 from utils import unique_slug
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -254,6 +254,79 @@ def category_delete(category_id):
     db.session.commit()
     flash("カテゴリを削除しました。", "success")
     return redirect(url_for("admin.categories"))
+
+
+# ---- ランディングページ管理 -------------------------------------------------
+# 主に MCP / API から追加するが、管理画面でも一覧・編集・削除できるようにする。
+
+
+@bp.route("/landing-pages")
+@login_required
+def landing_pages():
+    pages = LandingPage.query.order_by(LandingPage.updated_at.desc()).all()
+    return render_template("admin/landing_pages.html", pages=pages)
+
+
+@bp.route("/landing-pages/new", methods=["GET", "POST"])
+@login_required
+def landing_page_new():
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        html = request.form.get("html", "")
+        if not title or not html.strip():
+            flash("タイトルと HTML は必須です。", "error")
+            return render_template(
+                "admin/landing_page_form.html", page=None, form=request.form
+            )
+        lp = LandingPage(
+            title=title,
+            html=html,
+            published=bool(request.form.get("published")),
+        )
+        slug_input = request.form.get("slug", "").strip() or title
+        lp.slug = unique_slug(slug_input, LandingPage, fallback="lp")
+        db.session.add(lp)
+        db.session.commit()
+        flash("ランディングページを作成しました。", "success")
+        return redirect(url_for("admin.landing_pages"))
+    return render_template("admin/landing_page_form.html", page=None, form={})
+
+
+@bp.route("/landing-pages/<int:page_id>/edit", methods=["GET", "POST"])
+@login_required
+def landing_page_edit(page_id):
+    lp = db.session.get(LandingPage, page_id)
+    if lp is None:
+        abort(404)
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        html = request.form.get("html", "")
+        if not title or not html.strip():
+            flash("タイトルと HTML は必須です。", "error")
+            return render_template(
+                "admin/landing_page_form.html", page=lp, form=request.form
+            )
+        lp.title = title
+        lp.html = html
+        lp.published = bool(request.form.get("published"))
+        slug_input = request.form.get("slug", "").strip() or title
+        lp.slug = unique_slug(slug_input, LandingPage, fallback="lp", current_id=lp.id)
+        db.session.commit()
+        flash("ランディングページを更新しました。", "success")
+        return redirect(url_for("admin.landing_pages"))
+    return render_template("admin/landing_page_form.html", page=lp, form={})
+
+
+@bp.route("/landing-pages/<int:page_id>/delete", methods=["POST"])
+@login_required
+def landing_page_delete(page_id):
+    lp = db.session.get(LandingPage, page_id)
+    if lp is None:
+        abort(404)
+    db.session.delete(lp)
+    db.session.commit()
+    flash("ランディングページを削除しました。", "success")
+    return redirect(url_for("admin.landing_pages"))
 
 
 # ---- 管理者ユーザー管理 ------------------------------------------------------

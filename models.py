@@ -65,6 +65,25 @@ class AdminUser(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
 
 
+class LandingPage(db.Model):
+    """独自デザインのランディングページ。
+
+    記事(Article)と違い固定テンプレートに流し込まず、保存した HTML を
+    そのまま /lp/<slug> で配信する。MCP / REST API から追加・更新していく。
+    新規テーブルのため db.create_all() だけで導入でき、マイグレーション不要。
+    """
+
+    __tablename__ = "landing_pages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    slug = db.Column(db.String(200), unique=True, nullable=False, index=True)
+    html = db.Column(db.Text, default="")  # ページ全体の HTML（独自デザイン）
+    published = db.Column(db.Boolean, default=True, index=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=_now, onupdate=_now)
+
+
 class LoginThrottle(db.Model):
     """ログイン失敗回数を記録し、総当たり攻撃をロックアウトする。
 

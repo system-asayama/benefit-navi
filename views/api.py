@@ -8,7 +8,7 @@ from functools import wraps
 from flask import Blueprint, current_app, jsonify, request
 
 from extensions import db
-from models import Article, Category
+from models import Article, Category, LandingPage
 from utils import unique_slug
 
 bp = Blueprint("api", __name__, url_prefix="/api")
@@ -215,3 +215,121 @@ def delete_article(article_id):
     db.session.delete(art)
     db.session.commit()
     return jsonify(deleted=article_id)
+
+
+# ---- landing pages -----------------------------------------------------------
+# 記事と違い、保存した HTML をそのまま /lp/<slug> で配信する独自デザインの LP。
+
+
+def landing_dict(lp, html=True):
+    data = {
+        "id": lp.id,
+        "title": lp.title,
+        "slug": lp.slug,
+        "published": lp.published,
+        "created_at": lp.created_at.isoformat() if lp.created_at else None,
+        "updated_at": lp.updated_at.isoformat() if lp.updated_at else None,
+        "url": f"/lp/{lp.slug}",
+    }
+    if html:
+        data["html"] = lp.html or ""
+    return data
+
+
+@bp.get("/landing-pages")
+@require_token
+def list_landing_pages():
+    query = LandingPage.query
+    published = request.args.get("published")
+    if published is not None:
+        query = query.filter_by(published=published.lower() in ("1", "true", "yes"))
+    pages = query.order_by(LandingPage.updated_at.desc()).all()
+    return jsonify([landing_dict(lp, html=False) for lp in pages])
+
+
+@bp.get("/landing-pages/<slug>")
+@require_token
+def get_landing_page(slug):
+    lp = LandingPage.query.filter_by(slug=slug).first()
+    if lp is None:
+        return jsonify(error="landing page not found"), 404
+    return jsonify(landing_dict(lp))
+
+
+@bp.post("/landing-pages")
+@require_token
+def create_landing_page():
+    data = request.get_json(silent=True) or {}
+    title = (data.get("title") or "").strip()
+    if not title:
+        return jsonify(error="title is required"), 400
+    html = data.get("html")
+    if not html:
+        return jsonify(error="html is required"), 400
+    lp = LandingPage(
+        title=title,
+        html=html,
+        published=bool(data.get("published", True)),
+    )
+    lp.slug = unique_slug(data.get("slug") or title, LandingPage, fallback="lp")
+    db.session.add(lp)
+    db.session.commit()
+    return jsonify(landing_dict(lp)), 201
+
+
+@bp.patch("/landing-pages/<int:page_id>")
+@require_token
+def update_landing_page(page_id):
+    lp = db.session.get(LandingPage, page_id)
+    if lp is None:
+        return jsonify(error="landing page not found"), 404
+    data = request.get_json(silent=True) or {}
+    if "title" in data:
+        title = (data.get("title") or "").strip()
+        if not title:
+            return jsonify(error="title cannot be empty"), 400
+        lp.title = title
+    if "html" in data:
+        html = data.get("html")
+        if not html:
+            return jsonify(error="html cannot be empty"), 400
+        lp.html = html
+    if "published" in data:
+        lp.published = bool(data.get("published"))
+    if data.get("slug"):
+        lp.slug = unique_slug(data["slug"], LandingPage, fallback="lp", current_id=lp.id)
+    db.session.commit()
+    return jsonify(landing_dict(lp))
+
+
+@bp.post("/landing-pages/<int:page_id>/publish")
+@require_token
+def publish_landing_page(page_id):
+    lp = db.session.get(LandingPage, page_id)
+    if lp is None:
+        return jsonify(error="landing page not found"), 404
+    lp.published = True
+    db.session.commit()
+    return jsonify(landing_dict(lp, html=False))
+
+
+@bp.post("/landing-pages/<int:page_id>/unpublish")
+@require_token
+def unpublish_landing_page(page_id):
+    lp = db.session.get(LandingPage, page_id)
+    if lp is None:
+        return jsonify(error="landing page not found"), 404
+    lp.published = False
+    db.session.commit()
+    return jsonify(landing_dict(lp, html=False))
+
+
+@bp.delete("/landing-pages/<int:page_id>")
+@require_token
+def delete_landing_page(page_id):
+    lp = db.session.get(LandingPage, page_id)
+    if lp is None:
+        return jsonify(error="landing page not found"), 404
+    db.session.delete(lp)
+    db.session.commit()
+    return jsonify(deleted=page_id)

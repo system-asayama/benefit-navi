@@ -86,6 +86,23 @@ REST API（すべて `Authorization: Bearer <API_TOKEN>` が必要）:
 | POST | `/api/articles/<id>/publish` | 公開 |
 | POST | `/api/articles/<id>/unpublish` | 下書きに戻す |
 | DELETE | `/api/articles/<id>` | 削除 |
+| GET | `/api/landing-pages` | LP一覧（`?published=`、HTML本文なし） |
+| GET | `/api/landing-pages/<slug>` | LP取得（HTML付き） |
+| POST | `/api/landing-pages` | LP作成（`title`, `html` 必須） |
+| PATCH | `/api/landing-pages/<id>` | LPの部分更新 |
+| POST | `/api/landing-pages/<id>/publish` | 公開 |
+| POST | `/api/landing-pages/<id>/unpublish` | 下書きに戻す |
+| DELETE | `/api/landing-pages/<id>` | 削除 |
+
+#### ランディングページ（独自デザインのLP）
+
+記事は固定テンプレートに Markdown を流し込みますが、**ランディングページは渡した
+HTML をそのまま `/lp/<slug>` で配信**します（サイト共通のヘッダー/フッターで包まれ
+ません）。Claude に「〜のLPを作って」と頼むと、MCP 経由でデザインごと1ページが
+追加されます。MCP ツール: `create_landing_page` / `update_landing_page` /
+`list_landing_pages` / `get_landing_page` / `publish_landing_page` /
+`unpublish_landing_page` / `delete_landing_page`。管理画面の「LP」タブからも
+一覧・編集・削除できます。
 
 ### 2. MCP サーバーを Claude に接続
 

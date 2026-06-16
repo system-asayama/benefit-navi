@@ -159,5 +159,98 @@ def unpublish_article(article_id: int) -> dict:
         return _result(c.post(f"/articles/{article_id}/unpublish"))
 
 
+# ---- ランディングページ（独自デザインの LP） --------------------------------
+# 記事と違い、定型テンプレートに流し込まず、渡した HTML をそのまま
+# /lp/<slug> で配信する。自分でデザインした完全な1ページを追加していく用途。
+
+
+@mcp.tool()
+def list_landing_pages(published: str = "") -> list:
+    """ランディングページ一覧（HTML本文なし）を返す。published("true"/"false")で絞り込める。"""
+    params = {}
+    if published:
+        params["published"] = published
+    with _client() as c:
+        return _result(c.get("/landing-pages", params=params))
+
+
+@mcp.tool()
+def get_landing_page(slug: str) -> dict:
+    """slug を指定してランディングページ1件を HTML 付きで取得する（編集前の確認に使う）。"""
+    with _client() as c:
+        return _result(c.get(f"/landing-pages/{slug}"))
+
+
+@mcp.tool()
+def create_landing_page(
+    title: str,
+    html: str,
+    slug: str = "",
+    published: bool = True,
+) -> dict:
+    """独自デザインのランディングページを作成して公開する。
+
+    html はページ全体の完全な HTML（<!doctype html> から始まる1ページ）を渡す。
+    サイト共通のヘッダー/フッターでは包まれず、この HTML がそのまま
+    https://<host>/lp/<slug> で表示される。デザインは自由。
+    slug は空なら title から自動生成される。
+    """
+    with _client() as c:
+        return _result(
+            c.post(
+                "/landing-pages",
+                json={
+                    "title": title,
+                    "html": html,
+                    "slug": slug,
+                    "published": published,
+                },
+            )
+        )
+
+
+@mcp.tool()
+def update_landing_page(
+    page_id: int,
+    title: str | None = None,
+    html: str | None = None,
+    slug: str | None = None,
+    published: bool | None = None,
+) -> dict:
+    """既存のランディングページを部分更新する。指定したフィールドだけ上書きされる。"""
+    payload = {}
+    if title is not None:
+        payload["title"] = title
+    if html is not None:
+        payload["html"] = html
+    if slug is not None:
+        payload["slug"] = slug
+    if published is not None:
+        payload["published"] = published
+    with _client() as c:
+        return _result(c.patch(f"/landing-pages/{page_id}", json=payload))
+
+
+@mcp.tool()
+def publish_landing_page(page_id: int) -> dict:
+    """ランディングページを公開状態にする。"""
+    with _client() as c:
+        return _result(c.post(f"/landing-pages/{page_id}/publish"))
+
+
+@mcp.tool()
+def unpublish_landing_page(page_id: int) -> dict:
+    """ランディングページを下書き（非公開）に戻す。"""
+    with _client() as c:
+        return _result(c.post(f"/landing-pages/{page_id}/unpublish"))
+
+
+@mcp.tool()
+def delete_landing_page(page_id: int) -> dict:
+    """ランディングページを削除する。"""
+    with _client() as c:
+        return _result(c.delete(f"/landing-pages/{page_id}"))
+
+
 if __name__ == "__main__":
     mcp.run()

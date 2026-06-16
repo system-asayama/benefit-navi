@@ -1,6 +1,6 @@
-from flask import Blueprint, render_template
+from flask import Blueprint, Response, render_template
 
-from models import Article, Category
+from models import Article, Category, LandingPage
 
 bp = Blueprint("public", __name__)
 
@@ -35,6 +35,17 @@ def category(slug):
         articles=articles,
         categories=_nav_categories(),
     )
+
+
+@bp.route("/lp/<slug>")
+def landing(slug):
+    """独自デザインの LP を、保存された HTML のまま配信する。
+
+    記事と異なりサイト共通テンプレートで包まず、ページ全体を Claude が
+    作った HTML として返す（完全な自由デザイン）。
+    """
+    lp = LandingPage.query.filter_by(slug=slug, published=True).first_or_404()
+    return Response(lp.html or "", mimetype="text/html")
 
 
 @bp.route("/article/<slug>")

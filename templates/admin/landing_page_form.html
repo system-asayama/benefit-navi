@@ -1,0 +1,36 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ 'LPを編集' if page else '新規LP' }}{% endblock %}
+
+{% block content %}
+<div class="page-head admin-page-head">
+  <h1>{{ 'LPを編集' if page else '新規LP' }}</h1>
+  <a class="btn" href="{{ url_for('admin.landing_pages') }}">← 一覧へ戻る</a>
+</div>
+
+<form method="post" class="article-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label>タイトル <span class="req">*</span>
+    <input type="text" name="title" required
+           value="{{ page.title if page else form.get('title', '') }}">
+  </label>
+
+  <label>スラッグ（URL。空ならタイトルから自動生成）
+    <input type="text" name="slug"
+           value="{{ page.slug if page else form.get('slug', '') }}"
+           placeholder="例: nisa-campaign">
+  </label>
+
+  <label>HTML（ページ全体。<code>&lt;!doctype html&gt;</code> から始まる完全な1ページ）<span class="req">*</span>
+    <textarea name="html" rows="24" class="code" required>{{ page.html if page else form.get('html', '') }}</textarea>
+  </label>
+
+  <label class="checkbox">
+    <input type="checkbox" name="published"
+      {% if page is none or page.published %}checked{% endif %}>
+    公開する
+  </label>
+
+  <button type="submit" class="btn btn-primary">{{ '更新する' if page else '作成する' }}</button>
+</form>
+{% endblock %}
