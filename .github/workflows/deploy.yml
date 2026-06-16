@@ -12,13 +12,16 @@ jobs:
     steps:
       - name: Deploy via SSH (production)
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.SSH_HOST_PRODUCTION }}
           username: ${{ secrets.SSH_USER_PRODUCTION }}
           port: ${{ secrets.SSH_PORT_PRODUCTION }}
           key: ${{ secrets.SSH_PRIVATE_KEY_PRODUCTION }}
+          envs: GITHUB_TOKEN
           script: |
-            [ -d ~/apps/benefit-navi/.git ] || (mkdir -p ~/apps/benefit-navi && cd ~/apps/benefit-navi && git init) && cd ~/apps/benefit-navi && git pull --rebase --autostash 2>/dev/null || git pull && cd ~/apps/benefit-navi && WEB_PORT=8080 docker compose pull 2>/dev/null || true; WEB_PORT=8080 docker compose up -d --build --remove-orphans
+            if [ -d ~/apps/benefit-navi/.git ]; then cd ~/apps/benefit-navi && (git pull --rebase --autostash 2>/dev/null || git pull); else mkdir -p "$(dirname ~/apps/benefit-navi)" && rm -rf ~/apps/benefit-navi && git clone --branch main https://oauth2:$GITHUB_TOKEN@github.com/system-asayama/benefit-navi.git ~/apps/benefit-navi; fi && cd ~/apps/benefit-navi && WEB_PORT=8080 docker compose pull 2>/dev/null || true; WEB_PORT=8080 docker compose up -d --build --remove-orphans
 
   deploy-dev:
     if: github.ref == 'refs/heads/dev'
@@ -26,10 +29,13 @@ jobs:
     steps:
       - name: Deploy via SSH (dev)
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.SSH_HOST_DEV }}
           username: ${{ secrets.SSH_USER_DEV }}
           port: ${{ secrets.SSH_PORT_DEV }}
           key: ${{ secrets.SSH_PRIVATE_KEY_DEV }}
+          envs: GITHUB_TOKEN
           script: |
-            [ -d ~/apps/dev/.git ] || (mkdir -p ~/apps/dev && cd ~/apps/dev && git init) && cd ~/apps/dev && git pull --rebase --autostash 2>/dev/null || git pull && cd ~/apps/dev && WEB_PORT=8081 docker compose pull 2>/dev/null || true; WEB_PORT=8081 docker compose up -d --build --remove-orphans
+            if [ -d ~/apps/dev/.git ]; then cd ~/apps/dev && (git pull --rebase --autostash 2>/dev/null || git pull); else mkdir -p "$(dirname ~/apps/dev)" && rm -rf ~/apps/dev && git clone --branch dev https://oauth2:$GITHUB_TOKEN@github.com/system-asayama/benefit-navi.git ~/apps/dev; fi && cd ~/apps/dev && WEB_PORT=8081 docker compose pull 2>/dev/null || true; WEB_PORT=8081 docker compose up -d --build --remove-orphans
