@@ -18,7 +18,7 @@ jobs:
           port: ${{ secrets.SSH_PORT_PRODUCTION }}
           key: ${{ secrets.SSH_PRIVATE_KEY_PRODUCTION }}
           script: |
-            [ -d ~/apps/benefit-navi/.git ] || (mkdir -p ~/apps/benefit-navi && cd ~/apps/benefit-navi && git init) && cd ~/apps/benefit-navi && git pull --rebase --autostash 2>/dev/null || git pull && cd ~/apps/benefit-navi && docker compose pull 2>/dev/null || true; docker compose up -d --build --remove-orphans
+            [ -d ~/apps/benefit-navi/.git ] || (mkdir -p ~/apps/benefit-navi && cd ~/apps/benefit-navi && git init) && cd ~/apps/benefit-navi && git pull --rebase --autostash 2>/dev/null || git pull && cd ~/apps/benefit-navi && WEB_PORT=8080 docker compose pull 2>/dev/null || true; WEB_PORT=8080 docker compose up -d --build --remove-orphans
 
   deploy-dev:
     if: github.ref == 'refs/heads/dev'
@@ -32,4 +32,4 @@ jobs:
           port: ${{ secrets.SSH_PORT_DEV }}
           key: ${{ secrets.SSH_PRIVATE_KEY_DEV }}
           script: |
-            [ -d ~/apps/dev/.git ] || (mkdir -p ~/apps/dev && cd ~/apps/dev && git init) && cd ~/apps/dev && git pull --rebase --autostash 2>/dev/null || git pull && cd ~/apps/dev && docker compose pull 2>/dev/null || true; docker compose up -d --build --remove-orphans
+            [ -d ~/apps/dev/.git ] || (mkdir -p ~/apps/dev && cd ~/apps/dev && git init) && cd ~/apps/dev && git pull --rebase --autostash 2>/dev/null || git pull && cd ~/apps/dev && WEB_PORT=8081 docker compose pull 2>/dev/null || true; WEB_PORT=8081 docker compose up -d --build --remove-orphans
