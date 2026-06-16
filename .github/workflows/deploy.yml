@@ -18,4 +18,24 @@ jobs:
           port: ${{ secrets.SSH_PORT_PRODUCTION }}
           key: ${{ secrets.SSH_PRIVATE_KEY_PRODUCTION }}
           script: |
-            [ -d ~/apps/benefit-navi/.git ] || (mkdir -p ~/apps/benefit-navi && cd ~/apps/benefit-navi && git init) && cd ~/apps/benefit-navi && git pull --rebase --autostash 2>/dev/null || git pull && cd ~/apps/benefit-navi && docker compose pull 2>/dev/null || true; docker compose up -d --build --remove-orphans
+            set -e
+            REPO_URL="https://github.com/system-asayama/benefit-navi.git"
+            APP_DIR="$HOME/apps/benefit-navi"
+
+            # 旧 scaffold（アンダースコアのディレクトリ）が動いていたらポート解放のため停止
+            if [ -d "$HOME/apps/benefit_navi" ]; then
+              (cd "$HOME/apps/benefit_navi" && docker compose down --remove-orphans 2>/dev/null || true)
+            fi
+
+            # 初回はクローン、以降は main に強制同期
+            mkdir -p "$HOME/apps"
+            if [ -d "$APP_DIR/.git" ]; then
+              cd "$APP_DIR"
+              git fetch origin main
+              git reset --hard origin/main
+            else
+              git clone "$REPO_URL" "$APP_DIR"
+              cd "$APP_DIR"
+            fi
+
+            docker compose up -d --build --remove-orphans

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+  <h1>{{ site_name }}</h1>
+  <p class="lead">{{ site_tagline }}</p>
+</section>
+
+<section class="categories">
+  <h2>カテゴリから探す</h2>
+  <div class="card-grid">
+    {% for c in categories %}
+      <a class="card category-card" href="{{ url_for('public.category', slug=c.slug) }}">
+        <h3>{{ c.name }}</h3>
+        <p>{{ c.description }}</p>
+        <span class="count">{{ c.published_articles|length }} 記事</span>
+      </a>
+    {% else %}
+      <p>カテゴリがまだありません。</p>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="latest">
+  <h2>新着記事</h2>
+  <div class="card-grid">
+    {% for a in latest %}
+      <a class="card article-card" href="{{ url_for('public.article', slug=a.slug) }}">
+        <span class="tag">{{ a.category.name }}</span>
+        <h3>{{ a.title }}</h3>
+        <p>{{ a.summary }}</p>
+      </a>
+    {% else %}
+      <p>記事がまだありません。</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

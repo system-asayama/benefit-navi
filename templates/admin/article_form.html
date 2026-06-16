@@ -1,0 +1,53 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ '記事を編集' if article else '新規記事' }}{% endblock %}
+
+{% set v = article or form %}
+
+{% block content %}
+<div class="page-head admin-page-head">
+  <h1>{{ '記事を編集' if article else '新規記事' }}</h1>
+  <a class="btn" href="{{ url_for('admin.dashboard') }}">← 一覧へ戻る</a>
+</div>
+
+<form method="post" class="article-form">
+  <label>タイトル <span class="req">*</span>
+    <input type="text" name="title" required
+           value="{{ article.title if article else form.get('title', '') }}">
+  </label>
+
+  <label>カテゴリ
+    <select name="category_id" required>
+      {% for c in categories %}
+        <option value="{{ c.id }}"
+          {% if article and article.category_id == c.id %}selected{% endif %}>
+          {{ c.name }}
+        </option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label>スラッグ（URL。空ならタイトルから自動生成）
+    <input type="text" name="slug"
+           value="{{ article.slug if article else form.get('slug', '') }}"
+           placeholder="例: shin-nisa-3points">
+  </label>
+
+  <label>要約（一覧やSNS用の短い説明）
+    <input type="text" name="summary" maxlength="300"
+           value="{{ article.summary if article else form.get('summary', '') }}">
+  </label>
+
+  <label>本文（Markdown / HTML 可）
+    <textarea name="body" rows="20" class="code">{{ article.body if article else form.get('body', '') }}</textarea>
+  </label>
+
+  <label class="checkbox">
+    <input type="checkbox" name="published"
+      {% if article is none or article.published %}checked{% endif %}>
+    公開する
+  </label>
+
+  <button type="submit" class="btn btn-primary">{{ '更新する' if article else '作成する' }}</button>
+</form>
+{% endblock %}
