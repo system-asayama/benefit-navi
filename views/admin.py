@@ -335,3 +335,34 @@ def user_password(user_id):
         db.session.commit()
         flash("パスワードを変更しました。", "success")
     return redirect(url_for("admin.users"))
+
+
+@bp.route("/users/<int:user_id>/username", methods=["POST"])
+@login_required
+def user_username(user_id):
+    """自分のログインID（ユーザー名）を変更する。確認のため現在のパスワードを要求。"""
+    if user_id != current_user.id:
+        abort(403)
+    user = db.session.get(AdminUser, user_id)
+    if user is None:
+        abort(404)
+
+    new_username = request.form.get("new_username", "").strip()
+    current_password = request.form.get("current_password", "")
+
+    if not user.check_password(current_password):
+        flash("現在のパスワードが違います。", "error")
+    elif not new_username:
+        flash("新しいログインIDを入力してください。", "error")
+    elif new_username == user.username:
+        flash("現在のログインIDと同じです。", "error")
+    elif AdminUser.query.filter_by(username=new_username).first():
+        flash("そのログインIDは既に使われています。", "error")
+    else:
+        old_username = user.username
+        user.username = new_username
+        # 旧IDに紐づくロック記録は不要になるため掃除する
+        LoginThrottle.query.filter_by(username=old_username).delete()
+        db.session.commit()
+        flash(f"ログインIDを「{new_username}」に変更しました。", "success")
+    return redirect(url_for("admin.users"))

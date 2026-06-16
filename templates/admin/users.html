@@ -55,6 +55,21 @@
 </section>
 
 <section class="form-section">
+  <h2>自分のログインID（ユーザー名）を変更</h2>
+  <p class="muted">現在のログインID：<strong>{{ current_user.username }}</strong></p>
+  <form method="post" action="{{ url_for('admin.user_username', user_id=current_user.id) }}" class="article-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>新しいログインID <span class="req">*</span>
+      <input type="text" name="new_username" required autocomplete="off">
+    </label>
+    <label>現在のパスワード（確認） <span class="req">*</span>
+      <input type="password" name="current_password" required autocomplete="current-password">
+    </label>
+    <button type="submit" class="btn btn-primary">IDを変更する</button>
+  </form>
+</section>
+
+<section class="form-section">
   <h2>自分のパスワードを変更</h2>
   <form method="post" action="{{ url_for('admin.user_password', user_id=current_user.id) }}" class="article-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
