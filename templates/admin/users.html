@@ -1,0 +1,73 @@
+{% extends "admin/base.html" %}
+
+{% block title %}管理者管理{% endblock %}
+
+{% block content %}
+<div class="page-head admin-page-head">
+  <h1>管理者管理</h1>
+</div>
+
+<table class="admin-table">
+  <thead>
+    <tr><th>ユーザー名</th><th>作成日</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for u in admins %}
+      <tr>
+        <td>
+          {{ u.username }}
+          {% if u.id == current_user.id %}<span class="badge badge-on">あなた</span>{% endif %}
+        </td>
+        <td>{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '-' }}</td>
+        <td class="row-actions">
+          {% if u.id != current_user.id and admins|length > 1 %}
+            <form method="post" action="{{ url_for('admin.user_delete', user_id=u.id) }}"
+                  onsubmit="return confirm('管理者「{{ u.username }}」を削除しますか？');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-small btn-danger">削除</button>
+            </form>
+          {% else %}
+            <span class="muted">—</span>
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="3">管理者がいません。</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<section class="form-section">
+  <h2>管理者を追加</h2>
+  <form method="post" action="{{ url_for('admin.users') }}" class="article-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>ユーザー名 <span class="req">*</span>
+      <input type="text" name="username" required autocomplete="off">
+    </label>
+    <label>パスワード <span class="req">*</span>
+      <input type="password" name="password" required autocomplete="new-password">
+    </label>
+    <label>パスワード（確認） <span class="req">*</span>
+      <input type="password" name="password_confirm" required autocomplete="new-password">
+    </label>
+    <button type="submit" class="btn btn-primary">追加する</button>
+  </form>
+</section>
+
+<section class="form-section">
+  <h2>自分のパスワードを変更</h2>
+  <form method="post" action="{{ url_for('admin.user_password', user_id=current_user.id) }}" class="article-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>現在のパスワード <span class="req">*</span>
+      <input type="password" name="current_password" required autocomplete="current-password">
+    </label>
+    <label>新しいパスワード <span class="req">*</span>
+      <input type="password" name="new_password" required autocomplete="new-password">
+    </label>
+    <label>新しいパスワード（確認） <span class="req">*</span>
+      <input type="password" name="new_password_confirm" required autocomplete="new-password">
+    </label>
+    <button type="submit" class="btn btn-primary">変更する</button>
+  </form>
+</section>
+{% endblock %}

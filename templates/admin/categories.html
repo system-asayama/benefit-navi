@@ -22,6 +22,7 @@
         <td class="row-actions">
           <form method="post" action="{{ url_for('admin.category_delete', category_id=c.id) }}"
                 onsubmit="return confirm('「{{ c.name }}」を削除しますか？');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-small btn-danger">削除</button>
           </form>
         </td>
@@ -35,6 +36,7 @@
 <section class="form-section">
   <h2>カテゴリを追加</h2>
   <form method="post" class="article-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>名前 <span class="req">*</span>
       <input type="text" name="name" required>
     </label>

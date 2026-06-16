@@ -3,7 +3,7 @@ from flask import Flask
 from markupsafe import Markup
 
 from config import Config
-from extensions import db, login_manager
+from extensions import csrf, db, login_manager
 from utils import init_db
 
 
@@ -13,6 +13,7 @@ def create_app():
 
     db.init_app(app)
     login_manager.init_app(app)
+    csrf.init_app(app)
 
     from models import AdminUser
 
@@ -42,6 +43,10 @@ def create_app():
     app.register_blueprint(public_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(api_bp)
+
+    # REST API は Bearer トークン認証のため CSRF を免除する
+    # （ブラウザのフォーム送信ではなく、外部クライアント/MCP からの呼び出し）。
+    csrf.exempt(api_bp)
 
     init_db(app)
     return app

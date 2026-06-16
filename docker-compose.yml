@@ -10,6 +10,11 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
       # MCP 連携用 REST API のトークン。空のままだと API は無効。
       API_TOKEN: ${API_TOKEN:-}
+      # HTTPS 環境では true にしてセッション Cookie を HTTPS 限定にする。
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-}
+      # ログイン総当たり対策（連続失敗回数 / ロック分数）。
+      LOGIN_MAX_ATTEMPTS: ${LOGIN_MAX_ATTEMPTS:-5}
+      LOGIN_LOCKOUT_MINUTES: ${LOGIN_LOCKOUT_MINUTES:-15}
     depends_on:
       - db
     restart: unless-stopped

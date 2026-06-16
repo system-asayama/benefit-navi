@@ -11,6 +11,7 @@
 </div>
 
 <form method="post" class="article-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <label>タイトル <span class="req">*</span>
     <input type="text" name="title" required
            value="{{ article.title if article else form.get('title', '') }}">
