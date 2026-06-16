@@ -108,4 +108,25 @@ def _seed(app, AdminUser, Article, Category):
                 )
             )
 
+    # サンプルのランディングページ（独自デザインのLP例）を1枚用意する。
+    from models import LandingPage
+
+    if LandingPage.query.count() == 0:
+        from pathlib import Path
+
+        sample = Path(__file__).with_name("samples") / "sample_lp.html"
+        try:
+            html = sample.read_text(encoding="utf-8")
+        except OSError:
+            html = ""
+        if html:
+            db.session.add(
+                LandingPage(
+                    title="新NISAスタートガイド",
+                    slug="shin-nisa-start",
+                    html=html,
+                    published=True,
+                )
+            )
+
     db.session.commit()
