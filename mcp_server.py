@@ -253,7 +253,7 @@ def delete_landing_page(page_id: int) -> dict:
 
 # ─────────────────────────────────────────────────────────────────────
 # HTTP MCP 拡張 (github-support-app の自動 PR で追加)
-# github-support-app HTTP/OAuth tail v4 (custom_route)
+# github-support-app HTTP/OAuth tail v5 (uvicorn-bind)
 # スマホ版 Claude (claude.ai) や リモートクライアントから使える MCP に
 # するため、stdio と streamable-http の両モードを切り替えられるようにする。
 #
@@ -262,16 +262,21 @@ def delete_landing_page(page_id: int) -> dict:
 #
 # claude.ai の Custom Connector は OAuth (DCR + PKCE) を要求するので、
 # mcp_oauth.py の最小 OAuth プロバイダーを FastMCP の custom_route で
-# 直接 mount する。Starlette wrap 方式より FastMCP と相性が良い。
+# 直接 mount する。port バインドは uvicorn で明示的に 0.0.0.0:9100。
 # ─────────────────────────────────────────────────────────────────────
 
 
 def _serve_http() -> None:
-    """OAuth + streamable-http MCP サーバーを起動する。
+    """OAuth + streamable-http MCP サーバーを 0.0.0.0:9100 で起動する。
 
-    FastMCP の ``custom_route`` デコレータを使って OAuth エンドポイントを
-    FastMCP インスタンスに直接登録する。これにより Starlette Mount での
-    順序問題を回避できる。
+    手順:
+      1. mcp_oauth のハンドラを ``mcp.custom_route`` で FastMCP に登録
+      2. FastMCP の ASGI app を ``mcp.streamable_http_app()`` で取得
+      3. uvicorn で 0.0.0.0:9100 にバインドして起動
+
+    FastMCP の ``mcp.run()`` は古いバージョンで host/port 引数を受理せず、
+    デフォルト 127.0.0.1:8000 にバインドしてしまうので、ASGI app を直接
+    uvicorn に渡してポートを確実に固定する。
     """
     import os as _os
     import sys as _sys
@@ -283,6 +288,7 @@ def _serve_http() -> None:
         print("[mcp_http] WARN: MCP_BEARER_TOKEN が空。/mcp は無認証で公開されます。",
               file=_sys.stderr)
 
+    # ── OAuth ハンドラを FastMCP に登録 ──
     try:
         from mcp_oauth import (
             well_known_authorization_server,
@@ -291,11 +297,6 @@ def _serve_http() -> None:
             authorize as oauth_authorize,
             token as oauth_token,
         )
-    except ImportError as e:
-        print(f"[mcp_http] mcp_oauth.py import 失敗 ({e})。OAuth 無しで起動。",
-              file=_sys.stderr)
-    else:
-        # FastMCP に OAuth エンドポイントを登録 (custom_route デコレータ方式)
         try:
             mcp.custom_route(
                 "/.well-known/oauth-authorization-server", methods=["GET"]
@@ -311,7 +312,28 @@ def _serve_http() -> None:
         except (AttributeError, TypeError) as e:
             print(f"[mcp_http] custom_route 利用不可 ({e})。OAuth 無しで起動。",
                   file=_sys.stderr)
+    except ImportError as e:
+        print(f"[mcp_http] mcp_oauth.py import 失敗 ({e})。OAuth 無しで起動。",
+              file=_sys.stderr)
 
+    # ── uvicorn で明示的に 0.0.0.0:9100 にバインド ──
+    try:
+        import uvicorn
+        app = mcp.streamable_http_app()
+        print("[mcp_http] uvicorn を 0.0.0.0:9100 で起動",
+              file=_sys.stderr)
+        uvicorn.run(app, host="0.0.0.0", port=9100, log_level="info")
+        return
+    except (AttributeError, ImportError) as e:
+        print(f"[mcp_http] uvicorn 経路失敗 ({e})。FastMCP run に fallback。",
+              file=_sys.stderr)
+
+    # ── 最終フォールバック: FastMCP の run (port 指定不可なケース) ──
+    try:
+        mcp.settings.host = "0.0.0.0"
+        mcp.settings.port = 9100
+    except AttributeError:
+        pass
     try:
         mcp.run(transport="streamable-http", host="0.0.0.0", port=9100)
     except TypeError:
