@@ -253,7 +253,7 @@ def delete_landing_page(page_id: int) -> dict:
 
 # ─────────────────────────────────────────────────────────────────────
 # HTTP MCP 拡張 (github-support-app の自動 PR で追加)
-# github-support-app HTTP/OAuth tail v7 (route-reorder)
+# github-support-app HTTP/OAuth tail v8 (asgi-debug)
 # スマホ版 Claude (claude.ai) や リモートクライアントから使える MCP に
 # するため、stdio と streamable-http の両モードを切り替えられるようにする。
 #
@@ -361,9 +361,32 @@ def _serve_http() -> None:
             except Exception as e:  # noqa: BLE001
                 print(f"[mcp_http] router 操作失敗: {e}", file=_sys.stderr)
 
-        print("[mcp_http] uvicorn を 0.0.0.0:9100 で起動",
+        # ── ASGI レベルでリクエストをログに残す (どの path が届くか確認) ──
+        _inner_app = app
+
+        async def _logged_app(scope, receive, send):
+            if scope.get("type") == "http":
+                _path = scope.get("path", "?")
+                _method = scope.get("method", "?")
+                print(f"[mcp_http_req] >>> {_method} {_path}",
+                      file=_sys.stderr)
+                # response status も拾う
+                _status_holder = {"code": 0}
+
+                async def _send_wrap(message):
+                    if message.get("type") == "http.response.start":
+                        _status_holder["code"] = message.get("status", 0)
+                    await send(message)
+
+                await _inner_app(scope, receive, _send_wrap)
+                print(f"[mcp_http_req] <<< {_status_holder['code']} {_path}",
+                      file=_sys.stderr)
+                return
+            await _inner_app(scope, receive, send)
+
+        print("[mcp_http] uvicorn を 0.0.0.0:9100 で起動 (request logging ON)",
               file=_sys.stderr)
-        uvicorn.run(app, host="0.0.0.0", port=9100, log_level="info")
+        uvicorn.run(_logged_app, host="0.0.0.0", port=9100, log_level="info")
         return
     except (AttributeError, ImportError) as e:
         print(f"[mcp_http] uvicorn 経路失敗 ({e})。FastMCP run に fallback。",
