@@ -253,7 +253,7 @@ def delete_landing_page(page_id: int) -> dict:
 
 # ─────────────────────────────────────────────────────────────────────
 # HTTP MCP 拡張 (github-support-app の自動 PR で追加)
-# github-support-app HTTP/OAuth tail v8 (asgi-debug)
+# github-support-app HTTP/OAuth tail v9 (asgi-debug-force)
 # スマホ版 Claude (claude.ai) や リモートクライアントから使える MCP に
 # するため、stdio と streamable-http の両モードを切り替えられるようにする。
 #
