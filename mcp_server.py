@@ -253,7 +253,7 @@ def delete_landing_page(page_id: int) -> dict:
 
 # ─────────────────────────────────────────────────────────────────────
 # HTTP MCP 拡張 (github-support-app の自動 PR で追加)
-# github-support-app HTTP/OAuth tail v10 (path-normalize)
+# github-support-app HTTP/OAuth tail v11 (mcp-rewrite)
 # スマホ版 Claude (claude.ai) や リモートクライアントから使える MCP に
 # するため、stdio と streamable-http の両モードを切り替えられるようにする。
 #
@@ -374,10 +374,16 @@ def _serve_http() -> None:
             if scope.get("type") == "http":
                 _orig_path = scope.get("path", "?")
                 _norm = _slash_re.sub("/", _orig_path)
+                # nginx (proxy_pass http://...:9100/;) は `/mcp` を strip して `/` に
+                # するため、claude.ai が叩く MCP protocol エンドポイント
+                # (https://.../mcp) が container 内では `/` として届く。
+                # FastMCP の MCP route は `/mcp` なので、`/` を `/mcp` に書き戻す。
+                if _norm in ("/", ""):
+                    _norm = "/mcp"
                 _method = scope.get("method", "?")
                 if _norm != _orig_path:
                     print(f"[mcp_http_req] >>> {_method} {_orig_path} "
-                          f"NORMALIZED-> {_norm}",
+                          f"REWRITE-> {_norm}",
                           file=_sys.stderr)
                     scope = dict(scope, path=_norm,
                                  raw_path=_norm.encode("ascii", "replace"))
