@@ -253,7 +253,7 @@ def delete_landing_page(page_id: int) -> dict:
 
 # ─────────────────────────────────────────────────────────────────────
 # HTTP MCP 拡張 (github-support-app の自動 PR で追加)
-# github-support-app HTTP/OAuth tail v6 (route-inject)
+# github-support-app HTTP/OAuth tail v7 (route-reorder)
 # スマホ版 Claude (claude.ai) や リモートクライアントから使える MCP に
 # するため、stdio と streamable-http の両モードを切り替えられるようにする。
 #
@@ -326,28 +326,40 @@ def _serve_http() -> None:
         from starlette.routing import Route as _StarletteRoute
         app = mcp.streamable_http_app()
 
-        # custom_route が streamable_http_app に反映されない FastMCP バージョン
-        # 対策: アプリの router.routes を直接書き換えて OAuth ルートを先頭に注入。
+        # FastMCP の Mount/catch-all より OAuth ルートを優先させる:
+        # 既に存在するなら先頭に並べ替え、無ければ新規挿入。
         if oauth_handlers is not None:
             try:
                 router = getattr(app, "router", None) or app
                 existing = list(getattr(router, "routes", []) or [])
-                injected = []
-                existing_paths = {getattr(r, "path", "") for r in existing}
-                for path, methods, handler in oauth_handlers:
-                    if path in existing_paths:
-                        continue
-                    injected.append(_StarletteRoute(
-                        path, handler, methods=methods,
-                    ))
-                if injected:
-                    # 先頭に挿入することで FastMCP のルートより優先させる
+                # デバッグ: 現在のルートを全部表示
+                for _i, _r in enumerate(existing):
+                    print(f"[mcp_http] route[{_i}] {type(_r).__name__} "
+                          f"path={getattr(_r, 'path', '?')} "
+                          f"methods={list(getattr(_r, 'methods', []) or [])}",
+                          file=_sys.stderr)
+                oauth_paths = {p for p, _, _ in oauth_handlers}
+                oauth_in_app = [r for r in existing
+                                if getattr(r, "path", "") in oauth_paths]
+                other_in_app = [r for r in existing
+                                if getattr(r, "path", "") not in oauth_paths]
+                if oauth_in_app:
+                    # custom_route で登録されたものを先頭に
+                    router.routes = oauth_in_app + other_in_app
+                    print(f"[mcp_http] OAuth routes を先頭に並び替え "
+                          f"({len(oauth_in_app)} 件)",
+                          file=_sys.stderr)
+                else:
+                    # 無いので新規挿入
+                    injected = [
+                        _StarletteRoute(p, h, methods=m)
+                        for p, m, h in oauth_handlers
+                    ]
                     router.routes = injected + existing
-                    print(f"[mcp_http] OAuth routes を ASGI router に直接注入: "
-                          f"{len(injected)} 件",
+                    print(f"[mcp_http] OAuth routes 新規注入 ({len(injected)} 件)",
                           file=_sys.stderr)
             except Exception as e:  # noqa: BLE001
-                print(f"[mcp_http] router 注入失敗: {e}", file=_sys.stderr)
+                print(f"[mcp_http] router 操作失敗: {e}", file=_sys.stderr)
 
         print("[mcp_http] uvicorn を 0.0.0.0:9100 で起動",
               file=_sys.stderr)
