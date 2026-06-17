@@ -1,4 +1,16 @@
 services:
+  mcp:
+    build: .
+    command: python mcp_server.py --http
+    environment:
+      BENEFIT_NAVI_API_URL: http://web:8000
+      BENEFIT_NAVI_API_TOKEN: ${API_TOKEN:-}
+      MCP_BEARER_TOKEN: ${API_TOKEN:-}
+    ports:
+      - "${MCP_PORT:-9100}:9100"
+    depends_on:
+      - web
+    restart: unless-stopped
   web:
     build: .
     ports:

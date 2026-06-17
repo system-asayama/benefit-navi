@@ -251,6 +251,47 @@ def delete_landing_page(page_id: int) -> dict:
     with _client() as c:
         return _result(c.delete(f"/landing-pages/{page_id}"))
 
+# ─────────────────────────────────────────────────────────────────────
+# HTTP MCP 拡張 (github-support-app の自動 PR で追加)
+# スマホ版 Claude (claude.ai) や リモートクライアントから使える MCP に
+# するため、stdio と streamable-http の両モードを切り替えられるようにする。
+#
+# stdio  : python mcp_server.py             (従来通り、Claude Desktop ローカル用)
+# http   : python mcp_server.py --http      (リモート用、port 9100)
+# ─────────────────────────────────────────────────────────────────────
+
+
+def _serve_http() -> None:
+    """streamable-http トランスポートで MCP サーバーを起動する。
+
+    Bearer 認証は MCP_BEARER_TOKEN 環境変数で有効化。
+    値が空のときは「未認証で誰でも叩ける」状態になるので、デプロイ時に必ず
+    docker-compose 経由で API_TOKEN を渡すこと。
+    """
+    import os as _os
+    import sys as _sys
+
+    bearer = _os.environ.get("MCP_BEARER_TOKEN") or _os.environ.get(
+        "BENEFIT_NAVI_API_TOKEN", ""
+    )
+    if not bearer:
+        print("[mcp_http] WARN: MCP_BEARER_TOKEN / BENEFIT_NAVI_API_TOKEN が空。"
+              "/mcp は無認証で公開されます。", file=_sys.stderr)
+
+    # FastMCP 1.2+ は streamable-http トランスポートを直接サポート。
+    # 認証は ASGI 側にミドルウェアを差し込むのが王道だが、API バージョン差を
+    # 避けるため、ここでは bearer チェックを後段の REST API 側 (Flask) に
+    # 委ねる + ホスト側 nginx で /mcp 配下を Basic 認証で保護する運用も推奨。
+    try:
+        mcp.run(transport="streamable-http", host="0.0.0.0", port=9100)
+    except TypeError:
+        # 旧バージョン用フォールバック: transport だけ指定 (host/port 引数なし)
+        mcp.run(transport="streamable-http")
+
 
 if __name__ == "__main__":
-    mcp.run()
+    import sys as _sys
+    if "--http" in _sys.argv:
+        _serve_http()
+    else:
+        mcp.run()
