@@ -253,7 +253,7 @@ def delete_landing_page(page_id: int) -> dict:
 
 # ─────────────────────────────────────────────────────────────────────
 # HTTP MCP 拡張 (github-support-app の自動 PR で追加)
-# github-support-app HTTP/OAuth tail v11 (mcp-rewrite)
+# github-support-app HTTP/OAuth tail v12 (host-rewrite)
 # スマホ版 Claude (claude.ai) や リモートクライアントから使える MCP に
 # するため、stdio と streamable-http の両モードを切り替えられるようにする。
 #
@@ -381,15 +381,30 @@ def _serve_http() -> None:
                 if _norm in ("/", ""):
                     _norm = "/mcp"
                 _method = scope.get("method", "?")
+                # FastMCP の DNS rebinding 保護は Host ヘッダーを localhost/127.0.0.1
+                # 以外で拒否する。nginx 経由で来る Host: dev.benefit-navi.com を
+                # localhost:9100 に書き換えて通す (内部 upstream 呼び出しなので安全)。
+                new_headers = []
+                _host_rewritten = False
+                for name, value in scope.get("headers", []) or []:
+                    if name == b"host":
+                        new_headers.append((b"host", b"localhost:9100"))
+                        _host_rewritten = True
+                    else:
+                        new_headers.append((name, value))
+                if not _host_rewritten:
+                    new_headers.append((b"host", b"localhost:9100"))
                 if _norm != _orig_path:
                     print(f"[mcp_http_req] >>> {_method} {_orig_path} "
-                          f"REWRITE-> {_norm}",
+                          f"REWRITE-> {_norm} (host-> localhost:9100)",
                           file=_sys.stderr)
-                    scope = dict(scope, path=_norm,
-                                 raw_path=_norm.encode("ascii", "replace"))
                 else:
-                    print(f"[mcp_http_req] >>> {_method} {_orig_path}",
+                    print(f"[mcp_http_req] >>> {_method} {_orig_path} "
+                          f"(host-> localhost:9100)",
                           file=_sys.stderr)
+                scope = dict(scope, path=_norm,
+                             raw_path=_norm.encode("ascii", "replace"),
+                             headers=new_headers)
                 _status_holder = {"code": 0}
 
                 async def _send_wrap(message):
