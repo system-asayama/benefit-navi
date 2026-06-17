@@ -258,15 +258,18 @@ def delete_landing_page(page_id: int) -> dict:
 #
 # stdio  : python mcp_server.py             (従来通り、Claude Desktop ローカル用)
 # http   : python mcp_server.py --http      (リモート用、port 9100)
+#
+# claude.ai の Custom Connector は OAuth (DCR + PKCE) を要求するので、
+# mcp_oauth.py の最小 OAuth プロバイダーを併設する。
 # ─────────────────────────────────────────────────────────────────────
 
 
 def _serve_http() -> None:
-    """streamable-http トランスポートで MCP サーバーを起動する。
+    """streamable-http + OAuth (DCR) で MCP サーバーを起動する。
 
-    Bearer 認証は MCP_BEARER_TOKEN 環境変数で有効化。
-    値が空のときは「未認証で誰でも叩ける」状態になるので、デプロイ時に必ず
-    docker-compose 経由で API_TOKEN を渡すこと。
+    OAuth エンドポイント (/.well-known/* /oauth/*) は無認証、
+    MCP 本体 (/) は Bearer 検証ミドルウェアで保護する。
+    トークンの実体は MCP_BEARER_TOKEN 環境変数。
     """
     import os as _os
     import sys as _sys
@@ -275,18 +278,72 @@ def _serve_http() -> None:
         "BENEFIT_NAVI_API_TOKEN", ""
     )
     if not bearer:
-        print("[mcp_http] WARN: MCP_BEARER_TOKEN / BENEFIT_NAVI_API_TOKEN が空。"
-              "/mcp は無認証で公開されます。", file=_sys.stderr)
+        print("[mcp_http] WARN: MCP_BEARER_TOKEN が空。/mcp は無認証で公開されます。",
+              file=_sys.stderr)
 
-    # FastMCP 1.2+ は streamable-http トランスポートを直接サポート。
-    # 認証は ASGI 側にミドルウェアを差し込むのが王道だが、API バージョン差を
-    # 避けるため、ここでは bearer チェックを後段の REST API 側 (Flask) に
-    # 委ねる + ホスト側 nginx で /mcp 配下を Basic 認証で保護する運用も推奨。
     try:
+        from starlette.applications import Starlette
+        from starlette.middleware import Middleware
+        from starlette.middleware.base import BaseHTTPMiddleware
+        from starlette.responses import Response
+        from starlette.routing import Mount
+        from mcp_oauth import get_oauth_routes, is_valid_token, _public_base_url
+    except ImportError as e:
+        print(f"[mcp_http] OAuth セットアップ失敗 ({e})。素の streamable-http に fallback。",
+              file=_sys.stderr)
+        try:
+            mcp.run(transport="streamable-http", host="0.0.0.0", port=9100)
+        except TypeError:
+            mcp.run(transport="streamable-http")
+        return
+
+    class _BearerAuth(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            path = request.url.path
+            # OAuth ディスカバリと token エンドポイントは公開
+            if (path.startswith("/.well-known/")
+                    or path.startswith("/oauth/")):
+                return await call_next(request)
+            auth_h = request.headers.get("Authorization", "")
+            if not auth_h.startswith("Bearer "):
+                base = _public_base_url(request)
+                return Response(
+                    "Unauthorized",
+                    status_code=401,
+                    headers={
+                        "WWW-Authenticate": (
+                            f'Bearer realm="MCP", '
+                            f'resource_metadata="{base}/.well-known/'
+                            f'oauth-protected-resource"'
+                        ),
+                    },
+                )
+            tok = auth_h[7:].strip()
+            if not is_valid_token(tok):
+                return Response("Invalid token", status_code=401)
+            return await call_next(request)
+
+    try:
+        mcp_app = mcp.streamable_http_app()
+    except AttributeError:
+        # FastMCP が streamable_http_app() を持たない場合のフォールバック
+        print("[mcp_http] mcp.streamable_http_app() 利用不可。素の transport で起動。",
+              file=_sys.stderr)
         mcp.run(transport="streamable-http", host="0.0.0.0", port=9100)
-    except TypeError:
-        # 旧バージョン用フォールバック: transport だけ指定 (host/port 引数なし)
-        mcp.run(transport="streamable-http")
+        return
+
+    app = Starlette(
+        routes=get_oauth_routes() + [Mount("/", app=mcp_app)],
+        middleware=[Middleware(_BearerAuth)],
+    )
+
+    try:
+        import uvicorn
+        uvicorn.run(app, host="0.0.0.0", port=9100, log_level="info")
+    except ImportError:
+        print("[mcp_http] uvicorn 未インストール。素の transport に fallback。",
+              file=_sys.stderr)
+        mcp.run(transport="streamable-http", host="0.0.0.0", port=9100)
 
 
 if __name__ == "__main__":
