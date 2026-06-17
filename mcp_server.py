@@ -253,6 +253,7 @@ def delete_landing_page(page_id: int) -> dict:
 
 # ─────────────────────────────────────────────────────────────────────
 # HTTP MCP 拡張 (github-support-app の自動 PR で追加)
+# github-support-app HTTP/OAuth tail v3 (path-normalized)
 # スマホ版 Claude (claude.ai) や リモートクライアントから使える MCP に
 # するため、stdio と streamable-http の両モードを切り替えられるようにする。
 #
@@ -285,6 +286,7 @@ def _serve_http() -> None:
         from starlette.applications import Starlette
         from starlette.middleware import Middleware
         from starlette.middleware.base import BaseHTTPMiddleware
+        from starlette.middleware.cors import CORSMiddleware
         from starlette.responses import Response
         from starlette.routing import Mount
         from mcp_oauth import get_oauth_routes, is_valid_token, _public_base_url
@@ -299,7 +301,10 @@ def _serve_http() -> None:
 
     class _BearerAuth(BaseHTTPMiddleware):
         async def dispatch(self, request, call_next):
-            path = request.url.path
+            # nginx の proxy_pass 経由でくる場合に // (二重スラッシュ) が
+            # 先頭にくる事故があるので、正規化してから判定する。
+            import re as _re
+            path = _re.sub(r"/+", "/", request.url.path)
             # OAuth ディスカバリと token エンドポイントは公開
             if (path.startswith("/.well-known/")
                     or path.startswith("/oauth/")):
@@ -334,7 +339,16 @@ def _serve_http() -> None:
 
     app = Starlette(
         routes=get_oauth_routes() + [Mount("/", app=mcp_app)],
-        middleware=[Middleware(_BearerAuth)],
+        middleware=[
+            # CORS は最外側 (preflight OPTIONS をベアラー認証より前に処理)。
+            # claude.ai が browser 側から DCR を投げてくるケースに備える。
+            Middleware(CORSMiddleware,
+                       allow_origins=["*"],
+                       allow_methods=["*"],
+                       allow_headers=["*"],
+                       expose_headers=["WWW-Authenticate"]),
+            Middleware(_BearerAuth),
+        ],
     )
 
     try:
