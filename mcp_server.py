@@ -253,7 +253,7 @@ def delete_landing_page(page_id: int) -> dict:
 
 # ─────────────────────────────────────────────────────────────────────
 # HTTP MCP 拡張 (github-support-app の自動 PR で追加)
-# github-support-app HTTP/OAuth tail v9 (asgi-debug-force)
+# github-support-app HTTP/OAuth tail v10 (path-normalize)
 # スマホ版 Claude (claude.ai) や リモートクライアントから使える MCP に
 # するため、stdio と streamable-http の両モードを切り替えられるようにする。
 #
@@ -361,16 +361,29 @@ def _serve_http() -> None:
             except Exception as e:  # noqa: BLE001
                 print(f"[mcp_http] router 操作失敗: {e}", file=_sys.stderr)
 
-        # ── ASGI レベルでリクエストをログに残す (どの path が届くか確認) ──
+        # ── ASGI レベルで path 正規化 + リクエストログ ──
+        # nginx (proxy_pass http://...:9100/;) が `/mcp/foo` を `//foo` 形式で
+        # 渡してくることがあるので (location prefix `/mcp` を `/` で置換 → `/` + `/foo`)、
+        # `//+` を `/` に圧縮してから内部 app に流す。Starlette の Route 完全一致が
+        # 通るようになる。
         _inner_app = app
+        import re as _re_pathfix
+        _slash_re = _re_pathfix.compile(r"/+")
 
         async def _logged_app(scope, receive, send):
             if scope.get("type") == "http":
-                _path = scope.get("path", "?")
+                _orig_path = scope.get("path", "?")
+                _norm = _slash_re.sub("/", _orig_path)
                 _method = scope.get("method", "?")
-                print(f"[mcp_http_req] >>> {_method} {_path}",
-                      file=_sys.stderr)
-                # response status も拾う
+                if _norm != _orig_path:
+                    print(f"[mcp_http_req] >>> {_method} {_orig_path} "
+                          f"NORMALIZED-> {_norm}",
+                          file=_sys.stderr)
+                    scope = dict(scope, path=_norm,
+                                 raw_path=_norm.encode("ascii", "replace"))
+                else:
+                    print(f"[mcp_http_req] >>> {_method} {_orig_path}",
+                          file=_sys.stderr)
                 _status_holder = {"code": 0}
 
                 async def _send_wrap(message):
@@ -379,7 +392,7 @@ def _serve_http() -> None:
                     await send(message)
 
                 await _inner_app(scope, receive, _send_wrap)
-                print(f"[mcp_http_req] <<< {_status_holder['code']} {_path}",
+                print(f"[mcp_http_req] <<< {_status_holder['code']} {_norm}",
                       file=_sys.stderr)
                 return
             await _inner_app(scope, receive, send)
