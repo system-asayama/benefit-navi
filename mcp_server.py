@@ -253,7 +253,7 @@ def delete_landing_page(page_id: int) -> dict:
 
 # ─────────────────────────────────────────────────────────────────────
 # HTTP MCP 拡張 (github-support-app の自動 PR で追加)
-# github-support-app HTTP/OAuth tail v5 (uvicorn-bind)
+# github-support-app HTTP/OAuth tail v6 (route-inject)
 # スマホ版 Claude (claude.ai) や リモートクライアントから使える MCP に
 # するため、stdio と streamable-http の両モードを切り替えられるようにする。
 #
@@ -288,7 +288,8 @@ def _serve_http() -> None:
         print("[mcp_http] WARN: MCP_BEARER_TOKEN が空。/mcp は無認証で公開されます。",
               file=_sys.stderr)
 
-    # ── OAuth ハンドラを FastMCP に登録 ──
+    # ── OAuth ハンドラを取得 ──
+    oauth_handlers = None
     try:
         from mcp_oauth import (
             well_known_authorization_server,
@@ -297,20 +298,23 @@ def _serve_http() -> None:
             authorize as oauth_authorize,
             token as oauth_token,
         )
+        oauth_handlers = [
+            ("/.well-known/oauth-authorization-server", ["GET"],
+             well_known_authorization_server),
+            ("/.well-known/oauth-protected-resource", ["GET"],
+             well_known_protected_resource),
+            ("/oauth/register", ["POST"], oauth_register),
+            ("/oauth/authorize", ["GET"], oauth_authorize),
+            ("/oauth/token", ["POST"], oauth_token),
+        ]
+        # 念のため custom_route でも登録 (FastMCP バージョン違い対策)
         try:
-            mcp.custom_route(
-                "/.well-known/oauth-authorization-server", methods=["GET"]
-            )(well_known_authorization_server)
-            mcp.custom_route(
-                "/.well-known/oauth-protected-resource", methods=["GET"]
-            )(well_known_protected_resource)
-            mcp.custom_route("/oauth/register", methods=["POST"])(oauth_register)
-            mcp.custom_route("/oauth/authorize", methods=["GET"])(oauth_authorize)
-            mcp.custom_route("/oauth/token", methods=["POST"])(oauth_token)
+            for path, methods, handler in oauth_handlers:
+                mcp.custom_route(path, methods=methods)(handler)
             print("[mcp_http] OAuth routes 登録完了 (custom_route)",
                   file=_sys.stderr)
         except (AttributeError, TypeError) as e:
-            print(f"[mcp_http] custom_route 利用不可 ({e})。OAuth 無しで起動。",
+            print(f"[mcp_http] custom_route 利用不可 ({e}) — route inject で代替",
                   file=_sys.stderr)
     except ImportError as e:
         print(f"[mcp_http] mcp_oauth.py import 失敗 ({e})。OAuth 無しで起動。",
@@ -319,7 +323,32 @@ def _serve_http() -> None:
     # ── uvicorn で明示的に 0.0.0.0:9100 にバインド ──
     try:
         import uvicorn
+        from starlette.routing import Route as _StarletteRoute
         app = mcp.streamable_http_app()
+
+        # custom_route が streamable_http_app に反映されない FastMCP バージョン
+        # 対策: アプリの router.routes を直接書き換えて OAuth ルートを先頭に注入。
+        if oauth_handlers is not None:
+            try:
+                router = getattr(app, "router", None) or app
+                existing = list(getattr(router, "routes", []) or [])
+                injected = []
+                existing_paths = {getattr(r, "path", "") for r in existing}
+                for path, methods, handler in oauth_handlers:
+                    if path in existing_paths:
+                        continue
+                    injected.append(_StarletteRoute(
+                        path, handler, methods=methods,
+                    ))
+                if injected:
+                    # 先頭に挿入することで FastMCP のルートより優先させる
+                    router.routes = injected + existing
+                    print(f"[mcp_http] OAuth routes を ASGI router に直接注入: "
+                          f"{len(injected)} 件",
+                          file=_sys.stderr)
+            except Exception as e:  # noqa: BLE001
+                print(f"[mcp_http] router 注入失敗: {e}", file=_sys.stderr)
+
         print("[mcp_http] uvicorn を 0.0.0.0:9100 で起動",
               file=_sys.stderr)
         uvicorn.run(app, host="0.0.0.0", port=9100, log_level="info")
